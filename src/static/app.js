@@ -1,45 +1,69 @@
-document.addEventListener("DOMContentLoaded", () => {
+// Function to fetch activities from API
+async function fetchActivities() {
   const activitiesList = document.getElementById("activities-list");
   const activitySelect = document.getElementById("activity");
+  try {
+    const response = await fetch("/activities");
+    const activities = await response.json();
+
+    // Clear loading message
+    activitiesList.innerHTML = "";
+
+    // Populate activities list
+    Object.entries(activities).forEach(([name, details]) => {
+      const activityCard = document.createElement("div");
+      activityCard.className = "activity-card";
+
+      const spotsLeft = details.max_participants - details.participants.length;
+
+      activityCard.innerHTML = `
+        <h4>${name}</h4>
+        <p>${details.description}</p>
+        <p><strong>Schedule:</strong> ${details.schedule}</p>
+        <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+        <p><strong>Participants:</strong></p>
+        ${details.participants.length > 0 ? `<ul>${details.participants.map(email => `<li>${email} <span class="delete-icon" onclick="unregister('${name}', '${email}')">×</span></li>`).join('')}</ul>` : '<p>No participants yet.</p>'}
+      `;
+
+      activitiesList.appendChild(activityCard);
+
+      // Add option to select dropdown
+      const option = document.createElement("option");
+      option.value = name;
+      option.textContent = name;
+      activitySelect.appendChild(option);
+    });
+  } catch (error) {
+    activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
+    console.error("Error fetching activities:", error);
+  }
+}
+
+// Function to unregister a participant
+async function unregister(activityName, email) {
+  try {
+    const response = await fetch(
+      `/activities/${encodeURIComponent(activityName)}/signup?email=${encodeURIComponent(email)}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    if (response.ok) {
+      fetchActivities(); // Refresh the activities list
+    } else {
+      const result = await response.json();
+      alert(result.detail || "Failed to unregister");
+    }
+  } catch (error) {
+    alert("Failed to unregister. Please try again.");
+    console.error("Error unregistering:", error);
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
-
-  // Function to fetch activities from API
-  async function fetchActivities() {
-    try {
-      const response = await fetch("/activities");
-      const activities = await response.json();
-
-      // Clear loading message
-      activitiesList.innerHTML = "";
-
-      // Populate activities list
-      Object.entries(activities).forEach(([name, details]) => {
-        const activityCard = document.createElement("div");
-        activityCard.className = "activity-card";
-
-        const spotsLeft = details.max_participants - details.participants.length;
-
-        activityCard.innerHTML = `
-          <h4>${name}</h4>
-          <p>${details.description}</p>
-          <p><strong>Schedule:</strong> ${details.schedule}</p>
-          <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
-        `;
-
-        activitiesList.appendChild(activityCard);
-
-        // Add option to select dropdown
-        const option = document.createElement("option");
-        option.value = name;
-        option.textContent = name;
-        activitySelect.appendChild(option);
-      });
-    } catch (error) {
-      activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
-      console.error("Error fetching activities:", error);
-    }
-  }
 
   // Handle form submission
   signupForm.addEventListener("submit", async (event) => {
@@ -62,6 +86,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        fetchActivities(); // Refresh the activities list
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
